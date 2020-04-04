@@ -4,39 +4,23 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using GeniePlugin.Interfaces;
+using LNetwork;
 
 namespace LnetGeniePlugin
 {
     class LnetGenie : IPlugin
     {
-        private bool _enabled = true;
+        public string Name => "LnetGenie";
 
-        public string Name
-        {
-            get { return "LnetGenie"; }
-        }
+        public string Version => "0.0.1";
 
-        public string Version
-        {
-            get { return "0.0.1"; }
-        }
+        public string Description => "Connect to LNet without having Lich installed.";
 
-        public string Description
-        {
-            get { return "Connect to LNet without having Lich installed."; }
-        }
+        public string Author => "Orphean aka Neryndil <orpheanjmp@gmail.com> ";
 
-        public string Author
-        {
-            get { return "Orphean aka Neryndil <orpheanjmp@gmail.com> "; }
-        }
+        public bool Enabled { get; set; } = true;
 
-        public bool Enabled
-        {
-            get { return _enabled; }
-            set { _enabled = value; }
-        }
-
+        private Lnet _lnet = new Lnet();
 
         public void Initialize(IHost Host)
         {
