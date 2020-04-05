@@ -20,6 +20,14 @@ namespace LNetwork
     {
         public delegate void MessageReceivedHandler(object source, MessageEventArgs args);
 
+        public delegate void ConnectedHandler(object source, EventArgs args);
+
+        public delegate void DisconnectedHandler(object source, EventArgs args);
+
+        public event MessageReceivedHandler MessageReceived;
+        public event ConnectedHandler Connected;
+        public event DisconnectedHandler Disconnected;
+
         private const string Host = "lnet.lichproject.org";
         private const int Port = 7155;
 
@@ -43,100 +51,98 @@ namespace LNetwork
             _context.Buffer = new byte[32768];
         }
 
-        public event MessageReceivedHandler MessageReceived;
-
-        public void Test()
-        {
-            Connect();
-            _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
-            Login();
-            Tune();
-        }
-
         private void GetMessage(IAsyncResult result)
         {
-            var context = (LnetContext) result.AsyncState;
-            var messageData = new StringBuilder();
-            var size = context.Stream.EndRead(result);
+            try
+            {
+                var context = (LnetContext) result.AsyncState;
+                var messageData = new StringBuilder();
+                var size = context.Stream.EndRead(result);
 
-            var decoder = Encoding.UTF8.GetDecoder();
-            var chars = new char[decoder.GetCharCount(context.Buffer, 0, size)];
-            decoder.GetChars(context.Buffer, 0, size, chars, 0);
-            messageData.Append(chars);
+                var decoder = Encoding.UTF8.GetDecoder();
+                var chars = new char[decoder.GetCharCount(context.Buffer, 0, size)];
+                decoder.GetChars(context.Buffer, 0, size, chars, 0);
+                messageData.Append(chars);
 
-            var message = messageData.ToString();
+                var message = messageData.ToString();
 
-            Console.WriteLine(message);
+                Console.WriteLine(message);
 
-            var data = XDocument.Parse("<root>" + message + "</root>");
+                var data = XDocument.Parse("<root>" + message + "</root>");
 
-            var nodes =
-                from el in data.Root?.Elements()
-                select el;
+                var nodes =
+                    from el in data.Root?.Elements()
+                    select el;
 
-            foreach (var element in nodes)
-                switch (element.Name.ToString())
-                {
-                    case "ping":
-                        Pong();
-                        break;
-
-                    case "message":
+                foreach (var element in nodes)
+                    switch (element.Name.ToString())
                     {
-                        switch (element.FirstAttribute.Value)
+                        case "ping":
+                            Pong();
+                            break;
+
+                        case "message":
                         {
-                            case "greeting":
-                                OnMessageReceived(new Message
-                                    {Type = "greeting", Text = element.Value, Channel = "Lnet", From = ""});
-                                break;
-                            case "server":
-                                OnMessageReceived(new Message
-                                    {Type = "server", Text = element.Value, Channel = "Lnet", From = ""});
-                                break;
-
-                            default:
+                            switch (element.FirstAttribute.Value)
                             {
-                                var attributes = new Dictionary<string, string>();
+                                case "greeting":
+                                    OnMessageReceived(new Message
+                                        {Type = "greeting", Text = element.Value, Channel = "Lnet", From = ""});
+                                    break;
+                                case "server":
+                                    OnMessageReceived(new Message
+                                        {Type = "server", Text = element.Value, Channel = "Lnet", From = ""});
+                                    break;
 
-                                foreach (var attribute in element.Attributes())
-                                    attributes[attribute.Name.ToString()] = attribute.Value;
-
-                                switch (attributes["type"])
+                                default:
                                 {
-                                    case "private":
-                                        OnMessageReceived(new Message
-                                        {
-                                            Type = attributes["type"], From = attributes["from"], Channel = "private",
-                                            Text = element.Value
-                                        });
-                                        break;
+                                    var attributes = new Dictionary<string, string>();
 
-                                    case "channel":
-                                        OnMessageReceived(new Message
-                                        {
-                                            Type = attributes["type"], From = attributes["from"],
-                                            Channel = attributes["channel"], Text = element.Value
-                                        });
-                                        break;
+                                    foreach (var attribute in element.Attributes())
+                                        attributes[attribute.Name.ToString()] = attribute.Value;
 
-                                    default:
-                                        OnMessageReceived(new Message
-                                            {Type = "unknown", From = "", Channel = "", Text = element.Value});
-                                        break;
+                                    switch (attributes["type"])
+                                    {
+                                        case "private":
+                                            OnMessageReceived(new Message
+                                            {
+                                                Type = attributes["type"], From = attributes["from"],
+                                                Channel = "private",
+                                                Text = element.Value
+                                            });
+                                            break;
+
+                                        case "channel":
+                                            OnMessageReceived(new Message
+                                            {
+                                                Type = attributes["type"], From = attributes["from"],
+                                                Channel = attributes["channel"], Text = element.Value
+                                            });
+                                            break;
+
+                                        default:
+                                            OnMessageReceived(new Message
+                                                {Type = "unknown", From = "", Channel = "", Text = element.Value});
+                                            break;
+                                    }
+
+                                    break;
                                 }
-
-                                break;
                             }
                         }
+                            break;
+
+                        default:
+                            Console.WriteLine(element.Name.ToString());
+                            break;
                     }
-                        break;
 
-                    default:
-                        Console.WriteLine(element.Name.ToString());
-                        break;
-                }
-
-            _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
+                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private void OnMessageReceived(Message message)
@@ -144,7 +150,17 @@ namespace LNetwork
             MessageReceived?.Invoke(this, new MessageEventArgs {Message = message});
         }
 
-        private void Connect()
+        private void OnConnected()
+        {
+            Connected?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnDisconnected()
+        {
+            Disconnected?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void Connect()
         {
             _client = new TcpClient(Host, Port);
             Console.WriteLine("Connected to Lnet");
@@ -158,6 +174,8 @@ namespace LNetwork
             try
             {
                 _context.Stream.AuthenticateAsClient(Host);
+                OnConnected();
+                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
             }
             catch (AuthenticationException e)
             {
@@ -166,14 +184,16 @@ namespace LNetwork
 
                 Console.WriteLine("Authentication failed - closing the connection.");
                 Disconnect();
+                OnDisconnected();
             }
         }
 
-        private void Disconnect()
+        public void Disconnect()
         {
             if (!_client.Connected) return;
             _client.Close();
             Console.WriteLine("Disconnected from Lnet");
+            OnDisconnected();
         }
 
         private static bool ValidateServerCertificate(
@@ -185,9 +205,9 @@ namespace LNetwork
             return true;
         }
 
-        private void Login()
+        public void Login(string name, string game, string password = "")
         {
-            const string login = "<login name='Nery' game='DR' client='1.6' lich='4.7'></login>";
+            string login = $"<login name='{name}' game='{game}' client='1.6' lich='4.7'></login>";
 
             if (!_context.Stream.CanWrite) return;
 
@@ -207,14 +227,39 @@ namespace LNetwork
             _context.Stream.Flush();
         }
 
-        private void Tune()
+        public void Tune(string channel)
         {
-            const string tune = "<tune channel='lnetgenie'></tune>";
+            var tune = $"<tune channel='{channel}'></tune>";
 
             if (!_context.Stream.CanWrite) return;
 
             Console.WriteLine(tune);
             _context.Stream.Write(Encoding.UTF8.GetBytes(tune));
+            _context.Stream.Flush();
+        }
+
+        public void Send(string method, string target, string message)
+        {
+            string msg;
+
+            switch (method)
+            {
+                case "channel":
+                    msg = $"<message type='channel' channel='{target}'>{message}</message>";
+                    break;
+
+                case "private":
+                    msg = $"<message type='private' to='{target}'>{message}</message>";
+                    break;
+
+                default:
+                    return;
+            }
+
+            if (!_context.Stream.CanWrite) return;
+
+            Console.WriteLine(msg);
+            _context.Stream.Write(Encoding.UTF8.GetBytes(msg));
             _context.Stream.Flush();
         }
     }
