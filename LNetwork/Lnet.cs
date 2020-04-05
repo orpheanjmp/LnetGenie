@@ -18,11 +18,11 @@ namespace LNetwork
 
     public sealed class Lnet
     {
-        public delegate void MessageReceivedHandler(object source, MessageEventArgs args);
-
         public delegate void ConnectedHandler(object source, EventArgs args);
 
         public delegate void DisconnectedHandler(object source, EventArgs args);
+
+        public delegate void MessageReceivedHandler(object source, MessageEventArgs args);
 
         public event MessageReceivedHandler MessageReceived;
         public event ConnectedHandler Connected;
@@ -51,7 +51,7 @@ namespace LNetwork
             _context.Buffer = new byte[32768];
         }
 
-        private void GetMessage(IAsyncResult result)
+        private void ProcessMessage(IAsyncResult result)
         {
             try
             {
@@ -137,7 +137,7 @@ namespace LNetwork
                             break;
                     }
 
-                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
+                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, ProcessMessage, _context);
             }
             catch (Exception ex)
             {
@@ -175,7 +175,7 @@ namespace LNetwork
             {
                 _context.Stream.AuthenticateAsClient(Host);
                 OnConnected();
-                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, GetMessage, _context);
+                _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, ProcessMessage, _context);
             }
             catch (AuthenticationException e)
             {
@@ -207,7 +207,7 @@ namespace LNetwork
 
         public void Login(string name, string game, string password = "")
         {
-            string login = $"<login name='{name}' game='{game}' client='1.6' lich='4.7'></login>";
+            var login = $"<login name='{name}' game='{game}' client='1.6' lich='4.7'></login>";
 
             if (!_context.Stream.CanWrite) return;
 
