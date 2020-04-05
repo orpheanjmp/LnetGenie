@@ -123,7 +123,6 @@ namespace LnetGenieClient
 
         private void sendbtn_Click(object sender, EventArgs e)
         {
-           // var echo = $"[{fldChannel.Text}]-You: {inputFld.Text}";
             _lnet.Send("channel", fldChannel.Text, inputFld.Text);
         }
     }

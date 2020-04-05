@@ -21,11 +21,13 @@ namespace LnetGeniePlugin
         public bool Enabled { get; set; } = true;
 
         private Lnet _lnet = new Lnet();
+        private IHost _host;
 
         public void Initialize(IHost Host)
         {
-            throw new NotImplementedException();
+            _host = Host;
         }
+
 
         public void ParentClosing()
         {

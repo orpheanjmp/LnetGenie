@@ -163,7 +163,6 @@ namespace LNetwork
         public void Connect()
         {
             _client = new TcpClient(Host, Port);
-            Console.WriteLine("Connected to Lnet");
 
             _context.Stream = new SslStream(
                 _client.GetStream(),
@@ -175,14 +174,23 @@ namespace LNetwork
             {
                 _context.Stream.AuthenticateAsClient(Host);
                 OnConnected();
+                Console.WriteLine("Connected to Lnet");
+                OnMessageReceived(new Message
+                    {Type = "server", Text = "Connected to Lnet", Channel = "Lnet", From = ""});
+
                 _context.Stream.BeginRead(_context.Buffer, 0, _context.Buffer.Length, ProcessMessage, _context);
             }
             catch (AuthenticationException e)
             {
                 Console.WriteLine("Exception: {0}", e.Message);
-                if (e.InnerException != null) Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
+                if (e.InnerException != null)
+                    Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
 
                 Console.WriteLine("Authentication failed - closing the connection.");
+
+                OnMessageReceived(new Message
+                    {Type = "server", Text = "Error: Could not connect to Lnet", Channel = "Lnet", From = ""});
+
                 Disconnect();
                 OnDisconnected();
             }
@@ -193,6 +201,10 @@ namespace LNetwork
             if (!_client.Connected) return;
             _client.Close();
             Console.WriteLine("Disconnected from Lnet");
+
+            OnMessageReceived(new Message
+                {Type = "server", Text = "Disconnected from Lnet", Channel = "Lnet", From = ""});
+
             OnDisconnected();
         }
 
@@ -202,6 +214,7 @@ namespace LNetwork
             X509Chain chain,
             SslPolicyErrors sslPolicyErrors)
         {
+            // FIXME: Validate the cert you dork
             return true;
         }
 
